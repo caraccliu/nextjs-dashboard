@@ -6,6 +6,8 @@ import {redirect} from 'next/navigation';
 import {signIn} from '@/auth';
 import {AuthError} from 'next-auth';
 import {Auth} from "@auth/core";
+import {fetchCustomers} from "@/app/lib/data";
+import {User} from "@/app/lib/definitions";
 
 const FormSchema = z.object({
   id:z.string(),
@@ -18,8 +20,16 @@ const FormSchema = z.object({
   }),
     date:z.string(),
 });
+const CustomerFormScheme = z.object({
+    id:z.string(),
+    name:z.string().min(5, {message:'Please enter a name with at least five letters'}),
+    email:z.string().email({message:'Please enter a valid email address'}),
+    image_url:z.string(),
+});
+
 const CreateInvoice = FormSchema.omit({id:true,date:true});
 
+const CreateCustomer = CustomerFormScheme.omit({id:true, image_url: true});
 const UpdateInvoice = FormSchema.omit({id:true, date:true});
 
 export type State = {
@@ -29,6 +39,41 @@ export type State = {
         status?: string[];
     };
     message?: string | null;
+}
+export type CustomerInfo = {
+    errors?:{
+        name?:string[];
+        email?:string[];
+    };
+    message?:string|null;
+}
+
+export async function createCustomer(prevState: CustomerInfo, formData: FormData){
+   const validateFields = CreateCustomer.safeParse({
+       name:formData.get('name'),
+       email:formData.get('email'),
+   });
+   if(!validateFields.success){
+       return{
+           errors: validateFields.error.flatten().fieldErrors,
+           message: 'Missing Fields. Failed to Create Customer.',
+       }
+   }
+   const {name, email} = validateFields.data;
+    const user = await sql`SELECT * FROM customers WHERE email='balazs@orban.com'`;
+    const image_url_row =  user.rows[0];
+    const image_url = image_url_row.image_url;
+   try{
+       await sql`
+        INSERT INTO customers (name, email,image_url)
+        VALUES (${name}, ${email}, ${image_url})`;
+   }catch (error){
+       return {
+           message:'Database error: failed to create customer',
+       }
+   }
+   revalidatePath('/dashboard/customers');
+   redirect('/dashboard/customers');
 }
 export async function createInvoice(prevState: State,formData: FormData){
     const validatedFields = CreateInvoice.safeParse({
@@ -42,6 +87,7 @@ export async function createInvoice(prevState: State,formData: FormData){
             message: 'Missing Fields. Failed to Create Invoice.',
         }
     }
+
     const {customerId, amount, status} = validatedFields.data;
     const amountInCents = amount * 100;
     const date = new Date().toISOString().split('T')[0];

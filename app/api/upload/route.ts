@@ -16,5 +16,5 @@ export async function POST(req: Request){
     console.log(filename);
     console.log("can't believe!!!");
     console.log(NextResponse.json(file));
-    return NextResponse.json();
+    return NextResponse.json(req.body);
 }

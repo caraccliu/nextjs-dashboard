@@ -8,6 +8,7 @@ import {AuthError} from 'next-auth';
 import {Auth} from "@auth/core";
 import {fetchCustomers} from "@/app/lib/data";
 import {User} from "@/app/lib/definitions";
+import axios from 'axios';
 
 const FormSchema = z.object({
   id:z.string(),
@@ -25,11 +26,12 @@ const CustomerFormScheme = z.object({
     name:z.string().min(5, {message:'Please enter a name with at least five letters'}),
     email:z.string().email({message:'Please enter a valid email address'}),
     image_url:z.string(),
+    image:z.string(),
 });
 
 const CreateInvoice = FormSchema.omit({id:true,date:true});
 
-const CreateCustomer = CustomerFormScheme.omit({id:true, image_url: true});
+const CreateCustomer = CustomerFormScheme.omit({id:true, image_url: true,image:true});
 const UpdateInvoice = FormSchema.omit({id:true, date:true});
 
 export type State = {
@@ -52,7 +54,9 @@ export async function createCustomer(prevState: CustomerInfo, formData: FormData
    const validateFields = CreateCustomer.safeParse({
        name:formData.get('name'),
        email:formData.get('email'),
+       image:formData.get('image'),
    });
+   const imageFiles = formData.get('image');
    if(!validateFields.success){
        return{
            errors: validateFields.error.flatten().fieldErrors,
@@ -60,6 +64,21 @@ export async function createCustomer(prevState: CustomerInfo, formData: FormData
        }
    }
    const {name, email} = validateFields.data;
+   console.log(validateFields);
+   //post image to where
+    const url = "http://localhost:3000/api/upload";
+    try {
+        console.log(formData);
+        const response = await axios.post('http://localhost:3000/api/upload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        console.log(response.data); // Handle the response from the server
+    } catch (error) {
+        console.error('Error uploading file:', error);
+    }
+
     const user = await sql`SELECT * FROM customers WHERE email='balazs@orban.com'`;
     const image_url_row =  user.rows[0];
     const image_url = image_url_row.image_url;
